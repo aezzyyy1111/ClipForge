@@ -10,3 +10,4 @@ COPY frontend ./frontend
 RUN mkdir -p /var/data/uploads /var/data/outputs
 ENV CLIPFORGE_DATA_DIR=/var/data
 CMD ["sh", "-c", "python -m uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-10000}"]
+
