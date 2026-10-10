@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: clipforge-web
+    runtime: docker
+    plan: starter
+    healthCheckPath: /api/health
+    envVars:
+      - key: CLIPFORGE_DATA_DIR
+        value: /var/data
+    disk:
+      name: clipforge-storage
+      mountPath: /var/data
+      sizeGB: 20

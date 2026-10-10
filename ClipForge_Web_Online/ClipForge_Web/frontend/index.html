@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ClipForge · Video to Shorts</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="brand"><div class="brand-mark">✦</div><span>clipforge</span></div>
+    <div class="workspace-label">WORKSPACE</div>
+    <a class="nav active" href="#"><span>▦</span> Crea clip</a>
+    <a class="nav muted" href="#how"><span>◷</span> Come funziona</a>
+    <div class="sidebar-bottom"><div class="avatar">CF</div><div><b>Il tuo workspace</b><small>Versione locale · Beta</small></div></div>
+  </aside>
+  <main class="main">
+    <header class="topbar"><div><span class="eyebrow">VIDEO REPURPOSING STUDIO</span><h1>Da video lungo a <span>Shorts.</span></h1></div><div class="status"><i></i> Studio pronto</div></header>
+    <section class="intro"><p>Carica il tuo video. ClipForge crea versioni verticali pronte per YouTube Shorts, Reels e TikTok.</p></section>
+    <section class="work-grid">
+      <div class="panel upload-panel">
+        <div class="section-heading"><div class="step">01</div><div><h2>Il tuo video</h2><p>MP4, MOV, MKV, WEBM, AVI · scegli un file dal PC</p></div></div>
+        <form id="uploadForm">
+          <label class="dropzone" id="dropzone" for="videoInput">
+            <input type="file" id="videoInput" name="video" accept="video/*" required>
+            <div class="upload-icon">↑</div><strong>Trascina qui il video</strong><span>oppure <u>sfoglia i file</u></span><small id="fileName">Dimensione consigliata: sotto 2 GB</small>
+          </label>
+          <div class="section-heading settings-title"><div class="step">02</div><div><h2>Impostazioni clip</h2><p>Personalizza il formato di output</p></div></div>
+          <div class="settings-row">
+            <label>Numero di clip<select id="clipCount" name="clip_count"><option value="3">3 clip</option><option value="5" selected>5 clip</option><option value="7">7 clip</option><option value="10">10 clip</option></select></label>
+            <label>Durata massima<select id="clipDuration" name="clip_duration"><option value="15">15 secondi</option><option value="30" selected>30 secondi</option><option value="45">45 secondi</option><option value="60">60 secondi</option></select></label>
+          </div>
+          <div class="format-row"><div class="format-icon">▯</div><div><b>Verticale 9:16</b><small>1080 × 1920 · MP4 · H.264</small></div><span class="check">✓</span></div>
+          <button class="primary" type="submit" id="submitBtn"><span>✦</span> Genera le mie clip <b>↗</b></button>
+          <div class="fineprint">Elaborazione sul tuo PC · I video non vengono inviati a servizi esterni</div>
+        </form>
+      </div>
+      <div class="right-column">
+        <div class="panel preview-panel">
+          <div class="panel-top"><div><span class="eyebrow">OUTPUT PREVIEW</span><h2>Il risultato, in verticale</h2></div><span class="pill">9:16</span></div>
+          <div class="preview-stage">
+            <div class="phone"><div class="phone-glow"></div><div class="phone-content"><div class="play">▶</div><div class="subtitle">IL TUO PROSSIMO<br><b>SHORT INIZIA QUI</b></div><div class="phone-bottom"><span>♥ 12.4K</span><span>◉ 840</span><span>↗</span></div></div></div>
+            <div class="preview-caption"><b>Formato verticale</b><span>Ottimizzato per Shorts, Reels e TikTok</span></div>
+          </div>
+          <div class="feature-list"><div><span class="feature-check">✓</span><div><b>Formato 9:16</b><small>Ritaglio verticale automatico</small></div></div><div><span class="feature-check">✓</span><div><b>Clip scaricabili</b><small>MP4 pronte da pubblicare</small></div></div><div><span class="feature-pending">✦</span><div><b>Selezione AI dei momenti</b><small>In sviluppo, non attiva in questa versione</small></div></div></div>
+        </div>
+      </div>
+    </section>
+    <section class="results panel" id="results" hidden><div class="panel-top"><div><span class="eyebrow">IL TUO PROGETTO</span><h2>Le tue clip</h2></div><span class="pill" id="clipBadge">0 clip</span></div><div id="message" class="message"></div><div id="clipGrid" class="clip-grid"></div></section>
+    <section class="how" id="how"><div><span class="eyebrow">SEMPLICE, SENZA MAGIA FINTA</span><h2>Tre passaggi. Un video nuovo.</h2></div><div class="how-steps"><div><b>01</b><h3>Carica</h3><p>Scegli il video lungo dal computer.</p></div><div><b>02</b><h3>Personalizza</h3><p>Scegli quante clip creare e la durata.</p></div><div><b>03</b><h3>Esporta</h3><p>Scarica i video verticali e rifiniscili prima di pubblicarli.</p></div></div></section>
+    <footer>CLIPFORGE WEB <span>Una prima versione concreta. Il resto si costruisce.</span></footer>
+  </main>
+</div>
+<div class="toast" id="toast" role="status"></div>
+<script src="/static/app.js"></script>
+</body></html>
