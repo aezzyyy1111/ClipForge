@@ -1,374 +1,272 @@
 
-const $ = (selector) => document.querySelector(selector);
+const form = document.querySelector("#uploadForm");
+const fileInput = document.querySelector("#videoFile");
+const dropZone = document.querySelector("#dropZone");
+const selectedFile = document.querySelector("#selectedFile");
+const previewPanel = document.querySelector("#previewPanel");
+const preview = document.querySelector("#videoPreview");
+const submitButton = document.querySelector("#submitButton");
+const statusBox = document.querySelector("#status");
+const progressPanel = document.querySelector("#progressPanel");
+const progressBar = document.querySelector("#progressBar");
+const progressLabel = document.querySelector("#progressLabel");
+const progressPercent = document.querySelector("#progressPercent");
+const resultsSection = document.querySelector("#resultsSection");
+const clipsContainer = document.querySelector("#clips");
+const clipCount = document.querySelector("#clipCount");
 
-const form = $("#uploadForm") || $("form");
-const fileInput =
-  $("#videoFile") ||
-  $("#video") ||
-  $('input[type="file"]');
+let previewUrl = null;
+let busy = false;
 
-const statusBox =
-  $("#status") ||
-  $("#message") ||
-  $("#result");
-
-const progressBar =
-  $("#progressBar") ||
-  $("progress");
-
-const clipsContainer =
-  $("#clips") ||
-  $("#results") ||
-  $("#clipResults");
-
-let currentObjectUrl = null;
-
-function showStatus(message, type = "info") {
-  if (!statusBox) {
-    console.log(message);
-    return;
-  }
-
+function status(message, type = "") {
   statusBox.textContent = message;
-  statusBox.dataset.type = type;
-  statusBox.setAttribute("role", "status");
+  statusBox.className = `status ${type}`;
 }
 
-function setProgress(value) {
-  if (!progressBar) return;
-
-  if ("value" in progressBar) {
-    progressBar.value = value;
-  } else {
-    progressBar.style.width = `${value}%`;
+function formatBytes(bytes) {
+  if (bytes < 1024 * 1024) {
+    return `${Math.round(bytes / 1024)} KB`;
   }
-}
-
-function getFile() {
-  return fileInput?.files?.[0] || null;
-}
-
-function formatSize(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function setProgress(value, message) {
+  const percentage = Math.max(0, Math.min(100, value));
+  progressBar.value = percentage;
+  progressPercent.textContent = `${percentage}%`;
+  progressLabel.textContent = message;
+}
+
 function validateFile(file) {
-  if (!file) {
-    throw new Error("Seleziona prima un video.");
+  if (!file) throw new Error("Seleziona un video prima di continuare.");
+
+  const allowed = /\.(mp4|mov|mkv|webm|avi|m4v)$/i;
+
+  if (!allowed.test(file.name)) {
+    throw new Error("Formato non supportato. Scegli un video MP4, MOV, MKV, WebM, AVI o M4V.");
   }
 
-  const allowedExtensions = [
-    ".mp4", ".mov", ".mkv", ".webm", ".avi", ".m4v"
-  ];
+  if (file.size === 0) throw new Error("Il file selezionato è vuoto.");
 
-  const extension = file.name
-    .slice(file.name.lastIndexOf("."))
-    .toLowerCase();
-
-  if (!allowedExtensions.includes(extension)) {
-    throw new Error(
-      "Formato non supportato. Usa MP4, MOV, MKV, WebM, AVI o M4V."
-    );
-  }
-
-  if (file.size === 0) {
-    throw new Error("Il file selezionato è vuoto.");
+  if (file.size > 500 * 1024 * 1024) {
+    throw new Error("Il video supera il limite di 500 MB.");
   }
 
   return file;
 }
 
-async function readResponse(response) {
+function showFile(file) {
+  if (!file) return;
+
+  try {
+    validateFile(file);
+    selectedFile.hidden = false;
+    selectedFile.textContent = `🎬 ${file.name} · ${formatBytes(file.size)}`;
+
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    previewUrl = URL.createObjectURL(file);
+    preview.src = previewUrl;
+    previewPanel.hidden = false;
+
+    status("Video pronto per il caricamento.", "success");
+  } catch (error) {
+    selectedFile.hidden = true;
+    previewPanel.hidden = true;
+    status(error.message, "error");
+  }
+}
+
+fileInput.addEventListener("change", () => {
+  showFile(fileInput.files[0]);
+});
+
+for (const eventName of ["dragenter", "dragover"]) {
+  dropZone.addEventListener(eventName, (event) => {
+    event.preventDefault();
+    dropZone.classList.add("dragging");
+  });
+}
+
+for (const eventName of ["dragleave", "drop"]) {
+  dropZone.addEventListener(eventName, (event) => {
+    event.preventDefault();
+    dropZone.classList.remove("dragging");
+  });
+}
+
+dropZone.addEventListener("drop", (event) => {
+  const file = event.dataTransfer.files[0];
+  if (!file) return;
+
+  try {
+    validateFile(file);
+    const transfer = new DataTransfer();
+    transfer.items.add(file);
+    fileInput.files = transfer.files;
+    showFile(file);
+  } catch (error) {
+    status(error.message, "error");
+  }
+});
+
+async function readJsonResponse(response) {
   const text = await response.text();
+  let data;
 
-  let data = {};
-
-  if (text.trim()) {
-    try {
-      data = JSON.parse(text);
-    } catch {
-      throw new Error(
-        `Il server ha restituito una risposta non valida (HTTP ${response.status}). ` +
-        text.slice(0, 250)
-      );
-    }
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    throw new Error(
+      `Risposta non valida del server (HTTP ${response.status}). Controlla i Logs di Render.`
+    );
   }
 
   if (!response.ok) {
-    const detail =
-      data.detail ||
-      data.message ||
-      data.error ||
-      `Errore HTTP ${response.status}`;
-
+    const detail = data?.detail || data?.message || `Errore HTTP ${response.status}`;
     throw new Error(
-      typeof detail === "string"
-        ? detail
-        : JSON.stringify(detail)
+      typeof detail === "string" ? detail : JSON.stringify(detail)
     );
   }
 
-  if (!text.trim()) {
-    throw new Error(
-      "Il server ha restituito una risposta vuota."
-    );
-  }
-
+  if (!data) throw new Error("Il server ha restituito una risposta vuota.");
   return data;
 }
 
-function getClipUrl(clip) {
-  if (typeof clip === "string") return clip;
+function createClipCard(clip, index) {
+  const card = document.createElement("article");
+  card.className = "clip-card";
 
-  return (
-    clip?.download_url ||
-    clip?.url ||
-    clip?.video_url ||
-    clip?.download ||
-    null
-  );
+  const heading = document.createElement("h3");
+  heading.textContent = clip.name || `Clip ${index + 1}`;
+  card.appendChild(heading);
+
+  const video = document.createElement("video");
+  video.controls = true;
+  video.preload = "metadata";
+  video.playsInline = true;
+  video.src = clip.url;
+  video.className = "clip-video";
+  card.appendChild(video);
+
+  const download = document.createElement("a");
+  download.className = "download-button";
+  download.href = clip.download_url || clip.url;
+  download.textContent = "↓ Scarica clip";
+  download.download = clip.filename || `clip-${index + 1}.mp4`;
+  card.appendChild(download);
+
+  return card;
 }
 
-function renderClips(data) {
-  if (!clipsContainer) {
-    console.log("Risultato elaborazione:", data);
-    return;
+function showClips(data) {
+  if (!Array.isArray(data.clips) || data.clips.length === 0) {
+    throw new Error("Il server non ha restituito clip scaricabili.");
   }
 
   clipsContainer.replaceChildren();
 
-  const clips =
-    data.clips ||
-    data.results ||
-    data.files ||
-    [];
+  for (const [index, clip] of data.clips.entries()) {
+    if (!clip.url) continue;
+    clipsContainer.appendChild(createClipCard(clip, index));
+  }
 
-  if (!Array.isArray(clips) || clips.length === 0) {
-    showStatus(
-      "Elaborazione terminata, ma il server non ha restituito clip scaricabili.",
-      "warning"
+  if (!clipsContainer.children.length) {
+    throw new Error("Le clip ricevute non contengono indirizzi video.");
+  }
+
+  clipCount.textContent = `${clipsContainer.children.length} clip`;
+  resultsSection.hidden = false;
+  resultsSection.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function uploadVideo(file) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    const formData = new FormData();
+
+    formData.append("file", file);
+    xhr.open("POST", "/api/process");
+    xhr.responseType = "text";
+    xhr.timeout = 30 * 60 * 1000;
+
+    xhr.upload.onprogress = (event) => {
+      if (!event.lengthComputable) return;
+
+      const percent = Math.round((event.loaded / event.total) * 100);
+      setProgress(
+        percent,
+        percent >= 100
+          ? "Video inviato. Elaborazione sul server..."
+          : "Caricamento del video..."
+      );
+    };
+
+    xhr.onerror = () => reject(
+      new Error("Connessione interrotta. Controlla che ClipForge sia online.")
     );
+
+    xhr.ontimeout = () => reject(
+      new Error("Tempo scaduto. Render potrebbe aver interrotto l'elaborazione.")
+    );
+
+    xhr.onabort = () => reject(new Error("Caricamento annullato."));
+
+    xhr.onload = async () => {
+      try {
+        const data = await readJsonResponse(xhr);
+        resolve(data);
+      } catch (error) {
+        reject(error);
+      }
+    };
+
+    xhr.send(formData);
+  });
+}
+
+form.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (busy) return;
+
+  let file;
+
+  try {
+    file = validateFile(fileInput.files[0]);
+  } catch (error) {
+    status(error.message, "error");
     return;
   }
 
-  clips.forEach((clip, index) => {
-    const url = getClipUrl(clip);
-    const card = document.createElement("article");
-    const title = document.createElement("h3");
+  busy = true;
+  submitButton.disabled = true;
+  progressPanel.hidden = false;
+  resultsSection.hidden = true;
+  clipsContainer.replaceChildren();
+  setProgress(0, "Preparazione del video...");
+  status("Invio del video al server...");
 
-    title.textContent =
-      clip?.name ||
-      clip?.filename ||
-      `Clip ${index + 1}`;
-
-    card.appendChild(title);
-
-    if (url) {
-      const video = document.createElement("video");
-      video.controls = true;
-      video.preload = "metadata";
-      video.playsInline = true;
-      video.src = url;
-      video.style.maxWidth = "100%";
-      video.style.aspectRatio = "9 / 16";
-
-      card.appendChild(video);
-
-      const download = document.createElement("a");
-      download.href = url;
-      download.textContent = "Scarica clip";
-      download.download = clip?.filename || `clip-${index + 1}.mp4`;
-
-      card.appendChild(download);
-    } else {
-      const info = document.createElement("p");
-      info.textContent =
-        typeof clip === "object"
-          ? JSON.stringify(clip)
-          : String(clip);
-
-      card.appendChild(info);
-    }
-
-    clipsContainer.appendChild(card);
-  });
-}
-
-async function uploadVideo(file) {
-  const body = new FormData();
-
-  // Nome del campo usato comunemente dalle API FastAPI.
-  // Deve corrispondere al parametro definito in backend/main.py.
-  body.append("file", file);
-
-  showStatus("Caricamento del video in corso...");
-  setProgress(0);
-
-  const xhr = new XMLHttpRequest();
-
-  const result = await new Promise((resolve, reject) => {
-    xhr.open("POST", "/api/process");
-    xhr.responseType = "text";
-    xhr.timeout = 15 * 60 * 1000;
-
-    xhr.upload.onprogress = (event) => {
-      if (event.lengthComputable) {
-        const percent = Math.round(
-          (event.loaded / event.total) * 100
-        );
-
-        setProgress(percent);
-        showStatus(
-          `Caricamento: ${percent}% (${formatSize(event.loaded)} / ${formatSize(event.total)})`
-        );
-      }
-    };
-
-    xhr.onerror = () => {
-      reject(
-        new Error(
-          "Connessione al server interrotta. Riprova con un video più piccolo."
-        )
-      );
-    };
-
-    xhr.ontimeout = () => {
-      reject(
-        new Error(
-          "Tempo scaduto durante l'elaborazione. Il server potrebbe aver impiegato troppo tempo."
-        )
-      );
-    };
-
-    xhr.onabort = () => {
-      reject(new Error("Caricamento annullato."));
-    };
-
-    xhr.onload = () => {
-      let data = {};
-
-      if (xhr.responseText.trim()) {
-        try {
-          data = JSON.parse(xhr.responseText);
-        } catch {
-          reject(
-            new Error(
-              `Risposta non valida dal server (HTTP ${xhr.status}): ` +
-              xhr.responseText.slice(0, 250)
-            )
-          );
-          return;
-        }
-      }
-
-      if (xhr.status < 200 || xhr.status >= 300) {
-        const detail =
-          data.detail ||
-          data.message ||
-          data.error ||
-          `Errore HTTP ${xhr.status}`;
-
-        reject(
-          new Error(
-            typeof detail === "string"
-              ? detail
-              : JSON.stringify(detail)
-          )
-        );
-        return;
-      }
-
-      if (!xhr.responseText.trim()) {
-        reject(
-          new Error(
-            "Il server ha restituito una risposta vuota. Controlla i Logs di Render."
-          )
-        );
-        return;
-      }
-
-      resolve(data);
-    };
-
-    xhr.send(body);
-  });
-
-  return result;
-}
-
-if (fileInput) {
-  fileInput.addEventListener("change", () => {
-    const file = getFile();
-
-    if (!file) return;
-
-    try {
-      validateFile(file);
-      showStatus(
-        `Video selezionato: ${file.name} (${formatSize(file.size)})`,
-        "success"
-      );
-
-      const preview = $("#videoPreview");
-
-      if (preview) {
-        if (currentObjectUrl) {
-          URL.revokeObjectURL(currentObjectUrl);
-        }
-
-        currentObjectUrl = URL.createObjectURL(file);
-        preview.src = currentObjectUrl;
-        preview.hidden = false;
-      }
-    } catch (error) {
-      showStatus(error.message, "error");
-    }
-  });
-}
-
-if (form) {
-  form.addEventListener("submit", async (event) => {
-    event.preventDefault();
-
-    try {
-      const file = validateFile(getFile());
-
-      const submitButton = form.querySelector(
-        'button[type="submit"], input[type="submit"]'
-      );
-
-      if (submitButton) submitButton.disabled = true;
-
-      if (clipsContainer) clipsContainer.replaceChildren();
-
-      showStatus("Preparazione del video...");
-
-      try {
-        const data = await uploadVideo(file);
-
-        setProgress(100);
-        renderClips(data);
-        showStatus("Elaborazione completata.", "success");
-      } finally {
-        if (submitButton) submitButton.disabled = false;
-      }
-    } catch (error) {
-      console.error("Errore ClipForge:", error);
-
-      showStatus(
-        error?.message || "Errore sconosciuto durante l'elaborazione.",
-        "error"
-      );
-    }
-  });
-} else {
-  console.error(
-    "ClipForge: impossibile trovare il form di caricamento in index.html."
-  );
-}
-
-window.addEventListener("beforeunload", () => {
-  if (currentObjectUrl) {
-    URL.revokeObjectURL(currentObjectUrl);
+  try {
+    const data = await uploadVideo(file);
+    setProgress(100, "Elaborazione completata!");
+    showClips(data);
+    status(data.message || "Le clip sono pronte!", "success");
+  } catch (error) {
+    console.error("ClipForge:", error);
+    status(error.message || "Errore durante l'elaborazione.", "error");
+  } finally {
+    busy = false;
+    submitButton.disabled = false;
   }
 });
+
+window.addEventListener("beforeunload", () => {
+  if (previewUrl) URL.revokeObjectURL(previewUrl);
+});
+
+fetch("/api/health")
+  .then(readJsonResponse)
+  .then(() => console.log("ClipForge API connessa."))
+  .catch((error) => {
+    console.error("API non disponibile:", error);
+    status("Attenzione: il server API non risponde correttamente.", "error");
+  });
